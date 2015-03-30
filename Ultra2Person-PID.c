@@ -1,9 +1,9 @@
 #pragma config(I2C_Usage, I2C1, i2cSensors)
 #pragma config(Sensor, in4,    Gryo,           sensorGyro)
-#pragma config(Sensor, dgtl1,  SonarL,         sensorSONAR_cm)
+#pragma config(Sensor, dgtl1,  SonarL,         sensorSONAR_mm)
 #pragma config(Sensor, dgtl5,  skyriseR,       sensorDigitalOut)
 #pragma config(Sensor, dgtl6,  skyriseL,       sensorDigitalOut)
-#pragma config(Sensor, dgtl7,  SonarR,         sensorSONAR_cm)
+#pragma config(Sensor, dgtl7,  SonarR,         sensorSONAR_mm)
 #pragma config(Sensor, I2C_1,  leftLiftI2C,    sensorQuadEncoderOnI2CPort,    , AutoAssign)
 #pragma config(Sensor, I2C_2,  rightLiftI2C,   sensorQuadEncoderOnI2CPort,    , AutoAssign)
 #pragma config(Sensor, I2C_3,  rightBackI2C,   sensorQuadEncoderOnI2CPort,    , AutoAssign)
@@ -35,6 +35,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
+
 int correctedspeed = 0;
 
 
@@ -51,26 +52,80 @@ AUTONOMOUS CONST
 const int CLAW_CLOSE = 0;
 const int CLAW_OPEN = 1;
 
+const int DIRECTION_FORWARD = 1;
+const int DIRECTION_REVERSE = -1;
+
+const int DISTANCE_TO_WALL_MM = 50; // slams into wall at 51
+
+const int SLOPE_TOLERANCE_MM = 3; // 1 inch == 25.4 mm
+
+const float MOTOR_POWER_FACTOR = 1.5;
+
+const int MOTOR_POWER_MAX = 100;
+const int MOTOR_POWER_MIN = 20;
+
+const int MOTOR_POWER_RAMP_SLEEP_INTERVAL = 25; // in milliseconds
+
+const int DISTANCE_TO_GOAL_MM = 560;
+
+const float DISTANCE_BETWEEN_SENSORS_MM = 216.0;
+
+
+
+/*
+Autonomous PID variables
+*/
+// 2 inches from front of sensor to front of robot
+// 8 1/8 inches from center of sensor to center of sensor
+// 23 1/2 inches from wall to center of skyrise base
+float SONAR_OFFSET = -999;
+
+float SensorSlope = 0.0;
+
+
+float motorPowerCorrectionPercentage = 0.0;
+int currentMotorPower = 0;
+int currentPosition = 0;
+int direction = DIRECTION_FORWARD;
+
+float currentError = 0.0;
+float lastError = 0.0;
+
+int currentMotorPowerLeft = 0;
+int currentMotorPowerRight = 0;
+
 
 
 /*
 Autonomous variables
 */
-int LOCATION_WALL = 7;
+int grabHeight = 100;
+int maxHeight = 150;
+int scoreHeight = 5;
+int phaseOneStoppingPoint = 63; // original value: 62
+int scoringLocation = DISTANCE_TO_GOAL_MM;
+int maxDrivePower = 100;
+int minDrivePower = 20;
+bool shoveCube = true;
+bool abortAuton = false;
 
-int sonarL_Offset = 0;
-int sonarR_Offset = 0;
+int AUTON_STATE = 0;
+
 
 int positionToStartLoweringLiftWhenDrivingForward = 280;
+
+
 
 
 /*
 AUTONOMOUS LCD CONSTANTS
 */
 const int AUTON_MODE_DRIVE_OFF_SQUARE = 0;
-const int AUTON_MODE_SKYRISE_BUILDER = 1;
-const int AUTON_MODE_CUBE_SCORER = 2;
-const int AUTON_MODE_PROGRAMMING_SKILLS = 3;
+const int AUTON_MODE_SKYRISE_BUILDER_RED = 1; // skyrise is to left of robot
+const int AUTON_MODE_SKYRISE_BUILDER_BLUE = 2; // skyrise is to right of robot
+const int AUTON_MODE_CUBE_SCORER_RED = 3;
+const int AUTON_MODE_CUBE_SCORER_BLUE = 4;
+const int AUTON_MODE_PROGRAMMING_SKILLS = 5;
 
 int AUTON_MODE = AUTON_MODE_PROGRAMMING_SKILLS;
 
@@ -102,7 +157,7 @@ void pre_auton()
 	clearLCDLine(1);
 	bLCDBacklight = true;
 
-	if (true == true)
+	if (false == true)
 	{
 		nMotorEncoder[backLeft]=0;
 		nMotorEncoder[frontLeft]=0;
@@ -132,9 +187,9 @@ void pre_auton()
 					}
 				break;
 
-				case AUTON_MODE_SKYRISE_BUILDER:
+				case AUTON_MODE_SKYRISE_BUILDER_RED:
 					//Display second choice
-					displayLCDCenteredString(0, "Skyrise Builder");
+					displayLCDCenteredString(0, "Skyrise Red");
 					displayLCDCenteredString(1, "<		 Enter		>");
 					waitForPress();
 					//Increment or decrement "count" based on button press
@@ -150,9 +205,45 @@ void pre_auton()
 					}
 					break;
 
-				case AUTON_MODE_CUBE_SCORER:
+				case AUTON_MODE_SKYRISE_BUILDER_BLUE:
+					//Display second choice
+					displayLCDCenteredString(0, "Skyrise Blue");
+					displayLCDCenteredString(1, "<		 Enter		>");
+					waitForPress();
+					//Increment or decrement "count" based on button press
+					if(nLCDButtons == leftButton)
+					{
+						waitForRelease();
+						AUTON_MODE--;
+					}
+					else if(nLCDButtons == rightButton)
+					{
+						waitForRelease();
+						AUTON_MODE++;
+					}
+					break;
+
+				case AUTON_MODE_CUBE_SCORER_RED:
 					//Display third choice
-					displayLCDCenteredString(0, "Score Cube");
+					displayLCDCenteredString(0, "Cube Red");
+					displayLCDCenteredString(1, "<		 Enter		>");
+					waitForPress();
+					//Increment or decrement "count" based on button press
+					if(nLCDButtons == leftButton)
+					{
+						waitForRelease();
+						AUTON_MODE--;
+					}
+					else if(nLCDButtons == rightButton)
+					{
+						waitForRelease();
+						AUTON_MODE++;
+					}
+					break;
+
+				case AUTON_MODE_CUBE_SCORER_BLUE:
+					//Display third choice
+					displayLCDCenteredString(0, "Cube Blue");
 					displayLCDCenteredString(1, "<		 Enter		>");
 					waitForPress();
 					//Increment or decrement "count" based on button press
@@ -504,7 +595,7 @@ void raiseLift(int stopPosition, int liftPower) {
 
 // FUNC.lowerLift
 void lowerLift(int liftStopPosition, int liftPowerDown, int liftPowerHold) {
-	int currentPosition = abs(SensorValue[leftLiftI2C]);
+	//currentPosition = abs(SensorValue[leftLiftI2C]);
 
 	// lower quickly at first
 	if (currentPosition > liftStopPosition)
@@ -523,321 +614,359 @@ void lowerLift(int liftStopPosition, int liftPowerDown, int liftPowerHold) {
 }
 
 
-
-void squareUp()
+// NOTE: if SensorL > SensorR, currentError > 0
+// 			SensorL < SensorR, currentError < 0
+task DriveStraightPID()
 {
-	if (SensorValue[SonarR] > SensorValue[SonarL])
+	while (true)
 	{
-		// robot has spun in a clockwise direction
-		while (SensorValue[SonarR] > SensorValue[SonarL])
+		wait1Msec(10);
+		motorPowerCorrectionPercentage = 0;
+
+		if (abs(SensorValue[SonarL] - SensorValue[SonarR]) >= SLOPE_TOLERANCE_MM)
 		{
-			motor[frontRight] = 100;
-			motor[backLeft] = -60;
+
+			currentError = ((SensorValue[SonarL] - SensorValue[SonarR] - SONAR_OFFSET) / DISTANCE_BETWEEN_SENSORS_MM);
+
+			currentPosition = (SensorValue[SonarL] + SensorValue[SonarR]) / 2;
+
+			motorPowerCorrectionPercentage =
+			(
+				(currentMotorPower * abs(currentError))
+					// * (DISTANCE_TO_GOAL_MM / (DISTANCE_TO_GOAL_MM - currentPosition))
+					* MOTOR_POWER_FACTOR
+			) / 100;
 		}
-	}
-	else
-	{
-		// robot has spun in a counter-clockwise direction
-		motor[backLeft] = 100;
-		motor[frontRight] = -60;
 	}
 }
 
 
 
-// FUNC.sensorDriveForward
-void sensorDriveForward(int Power
-	, int stoppingPoint
-	, bool lowerLift)
+
+// TODO: handle skyrise lift here?
+task AutonSkyriseLift()
 {
-	int phaseOneDistance = stoppingPoint * 1.25;
 
-	if (lowerLift) phaseOneDistance = 28;
+}
 
-	int drivePowerReduced = Power * .5;
 
-	int valR = 0;
-	int valL = 0;
 
-	resetDriveMotorEncoders();
-	int liftLowerStartLocation = abs(nMotorEncoder[backLeft]) + positionToStartLoweringLiftWhenDrivingForward;
-	int driveCurrentLocation = abs(nMotorEncoder[backLeft]);
 
-	bool liftIsInMotion = false;
+// TODO: task for auton timer?
 
-	while((SensorValue[SonarR]-sonarR_Offset) > phaseOneDistance)
+
+// NOTE: if SensorL > SensorR, currentError > 0
+// 			SensorL < SensorR, currentError < 0
+void rampUpMotorsInReverse()
+{
+	currentMotorPower = MOTOR_POWER_MIN;
+
+	while (currentMotorPower < MOTOR_POWER_MAX)
 	{
-
-		if (liftIsInMotion == false
-			&& lowerLift
-			&& (driveCurrentLocation > liftLowerStartLocation))
+		// SensorL > SensorR
+		// robot is rotating counterclockwise
+		// slow down left motors
+		if (currentError > 0)
 		{
-			motor[leftSideYCable] = 127; // leftLiftI2C;
-			motor[rightSideYCable] = 127;  // rightLiftI2C;
-			liftIsInMotion = true;
+			currentMotorPowerLeft = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerLeft = (currentMotorPowerLeft < MOTOR_POWER_MIN) ? MOTOR_POWER_MIN : currentMotorPowerLeft;
+			currentMotorPowerRight = currentMotorPower;
+		}
+		// SensorL < SensorR
+		// robot is rotating clockwise
+		// slow down right motors
+		else if (currentError < 0)
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerRight = (currentMotorPowerRight < MOTOR_POWER_MIN) ? MOTOR_POWER_MIN : currentMotorPowerRight;
+		}
+		else
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = currentMotorPower;
 		}
 
-		valR = SensorValue[SonarR]-sonarR_Offset;
-		valL = SensorValue[SonarL]-sonarL_Offset;
+		motor[backLeft] = -currentMotorPowerLeft;
+		motor[frontLeft] = -currentMotorPowerLeft;
+		motor[backRight] = -currentMotorPowerRight;
+		motor[frontRight] = -currentMotorPowerRight;
+		wait1Msec(10);
 
-		if (valR == valL)
-		{
-			// keep driving
-			motor[frontRight] = Power;
-			motor[backRight] = Power;
-			motor[frontLeft] = Power;
-			motor[backLeft] =	Power;
-		}
-		else if (valR > valL)
-		{
-			// drifting to the right
-			motor[frontRight] = Power;
-			motor[backRight] = Power;
-			motor[frontLeft] = Power-20;
-			motor[backLeft] =	Power-20;
-		}
-		else if (valR < valL)
-		{
-			// drifting to the left
-			motor[frontRight] = Power-15;
-			motor[backRight] = Power-15;
-			motor[frontLeft] = Power;
-			motor[backLeft] =	Power;
-		}
-
-
-		if (lowerLift && liftIsInMotion == false)
-			driveCurrentLocation = abs(nMotorEncoder[backLeft]);
+		currentMotorPower += 3;
+		wait1Msec(MOTOR_POWER_RAMP_SLEEP_INTERVAL);
 	}
-
-
-	if (lowerLift)
-	{
-		motor[leftSideYCable] = 60; // leftLiftI2C;
-		motor[rightSideYCable] = 60;  // rightLiftI2C;
-	}
-
-
-	while((SensorValue[SonarR]-sonarR_Offset) > stoppingPoint)
-	{
-		valR = SensorValue[SonarR]-sonarR_Offset;
-		valL = SensorValue[SonarL]-sonarL_Offset;
-
-		if (valR == valL)
-		{
-			// keep driving
-			motor[frontRight] = drivePowerReduced;
-			motor[backRight] = drivePowerReduced;
-			motor[frontLeft] = drivePowerReduced;
-			motor[backLeft] =	drivePowerReduced;
-		}
-		else if (valR > valL)
-		{
-			// drifting to the right
-			motor[frontRight] = drivePowerReduced;
-			motor[backRight] = drivePowerReduced;
-			motor[frontLeft] = drivePowerReduced-20;
-			motor[backLeft] =	drivePowerReduced-20;
-		}
-		else if (valR < valL)
-		{
-			// drifting to the left
-			motor[frontRight] = drivePowerReduced-5;
-			motor[backRight] = drivePowerReduced-5;
-			motor[frontLeft] = drivePowerReduced;
-			motor[backLeft] =	drivePowerReduced;
-		}
-	}
-
-	motor[frontRight] = 0;
-	motor[backRight] = 0;
-	motor[frontLeft] = 0;
-	motor[backLeft] =	0;
 }
 
 
 
 
 
-// FUNC.sensorDriveReverse
-void sensorDriveReverse(int Power, int stoppingPoint)
+void rampDownMotorsInReverse()
 {
-	int phaseOneDistance = stoppingPoint * 0.7;
-	Power = -Power;
-	int drivePowerReduced = Power * .5;
-
-	int valR = 0;
-	int valL = 0;
-
-	while((SensorValue[SonarR]-sonarR_Offset) < phaseOneDistance)
+	while (currentMotorPower > MOTOR_POWER_MIN
+		&& currentPosition < DISTANCE_TO_GOAL_MM -50)
 	{
-		valR = SensorValue[SonarR]-sonarR_Offset;
-		valL = SensorValue[SonarL]-sonarL_Offset;
+		// SensorL > SensorR
+		// robot is rotating counterclockwise
+		// slow down left motors
+		if (currentError > 0)
+		{
+			currentMotorPowerLeft = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerRight = currentMotorPower;
+		}
+		// SensorL < SensorR
+		// robot is rotating clockwise
+		// slow down right motors
+		else if (currentError < 0)
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+		}
+		else
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = currentMotorPower;
+		}
 
-		if (valR == valL)
-		{
-			// keep driving
-			motor[frontRight] = Power;
-			motor[backRight] = Power;
-			motor[frontLeft] = Power;
-			motor[backLeft] =	Power;
-		}
-		else if (valR > valL)
-		{
-			// drifting to the left
-			motor[frontRight] = Power+5;
-			motor[backRight] = Power+5;
-			motor[frontLeft] = Power;
-			motor[backLeft] =	Power;
-		}
-		else if (valR < valL)
-		{
-			// drifting to the right
-			motor[frontRight] = Power;
-			motor[backRight] = Power;
-			motor[frontLeft] = Power+20;
-			motor[backLeft] =	Power+20;
-		}
+		motor[backLeft] = -currentMotorPowerLeft;
+		motor[frontLeft] = -currentMotorPowerLeft;
+		motor[backRight] = -currentMotorPowerRight;
+		motor[frontRight] = -currentMotorPowerRight;
+
+		currentMotorPower -= 5;
+		wait1Msec(25);
 	}
 
-	while((SensorValue[SonarR]-sonarR_Offset) < stoppingPoint)
-	{
-		valR = SensorValue[SonarR]-sonarR_Offset;
-		valL = SensorValue[SonarL]-sonarL_Offset;
+	currentMotorPower = 0;
+	motor[backRight] = currentMotorPower+3;
+	motor[frontRight] = currentMotorPower+3;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	wait1Msec(50);
 
-		if (valR == valL)
-		{
-			// keep driving
-			motor[frontRight] = drivePowerReduced;
-			motor[backRight] = drivePowerReduced;
-			motor[frontLeft] = drivePowerReduced;
-			motor[backLeft] =	drivePowerReduced;
-		}
-		else if (valR > valL)
-		{
-			// drifting to the left
-			motor[frontRight] = drivePowerReduced+3;
-			motor[backRight] = drivePowerReduced+3;
-			motor[frontLeft] = drivePowerReduced;
-			motor[backLeft] =	drivePowerReduced;
-		}
-		else if (valR < valL)
-		{
-			// drifting to the right
-			motor[frontRight] = drivePowerReduced;
-			motor[backRight] = drivePowerReduced;
-			motor[frontLeft] = drivePowerReduced+20;
-			motor[backLeft] =	drivePowerReduced+20;
-		}
-	}
+	motor[backRight] = currentMotorPower+5;
+	motor[frontRight] = currentMotorPower+5;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	wait1Msec(25);
+}
 
-	if (valR > valL)
+
+
+
+void driveInReverse()
+{
+	while (currentPosition < (DISTANCE_TO_GOAL_MM-250))
 	{
-		motor[frontRight] = 0;
-		motor[backRight] = 0;
-		motor[frontLeft] = 0;
-		motor[backLeft] =	0;
-	}
-	else
-	{
-		motor[frontRight] = 6;
-		motor[backRight] = 6;
-		motor[frontLeft] = 0;
-		motor[backLeft] =	0;
+		currentMotorPower = MOTOR_POWER_MAX;
+
+		// SensorL > SensorR
+		// robot is rotating counterclockwise
+		// slow down left motors
+		if (currentError > 0)
+		{
+			currentMotorPowerLeft = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerRight = currentMotorPower;
+		}
+		// SensorL < SensorR
+		// robot is rotating clockwise
+		// slow down right motors
+		else if (currentError < 0)
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+		}
+		else
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = currentMotorPower;
+		}
+
+		motor[backLeft] = -currentMotorPowerLeft;
+		motor[frontLeft] = -currentMotorPowerLeft;
+		motor[backRight] = -currentMotorPowerRight;
+		motor[frontRight] = -currentMotorPowerRight;
+		wait1Msec(25);
 	}
 }
 
 
 
-// FUNC.scoreSection
-void scoreSection(int liftHeightMax
-	, int liftHeightScore
-	, int phaseOneStoppingPoint
-	, int scoringLocation
-	, int drivePower
-	, bool shoveCube
-	, bool abortAuton)
+
+
+void rampUpMotorsInForward()
 {
-	wait1Msec(250);
+	currentMotorPower = MOTOR_POWER_MIN;
 
-	int shoveCubeStoppingPoint = phaseOneStoppingPoint + 10;
+	while (currentMotorPower < MOTOR_POWER_MAX)
+	{
+		// SensorL > SensorR
+		// robot is rotating counterclockwise
+		// slow down left motors
+		if (currentError > 0)
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+		}
+		// SensorL < SensorR
+		// robot is rotating clockwise
+		// slow down right motors
+		else if (currentError < 0)
+		{
+			currentMotorPowerLeft = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerRight = currentMotorPower;
+		}
+		else
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = currentMotorPower;
+		}
 
-	// clamp on skyrise
+		motor[backLeft] = currentMotorPowerLeft;
+		motor[frontLeft] = currentMotorPowerLeft;
+		motor[backRight] = currentMotorPowerRight;
+		motor[frontRight] = currentMotorPowerRight;
+
+		currentMotorPower += 3;
+		wait1Msec(10);
+	}
+}
+
+
+
+
+
+void rampDownMotorsInForward()
+{
+	while (currentMotorPower > MOTOR_POWER_MIN
+		&& currentPosition > DISTANCE_TO_WALL_MM)
+	{
+		// SensorL > SensorR
+		// robot is rotating clockwise
+		// slow down left motors
+		if (currentError > 0)
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+		}
+		// SensorL < SensorR
+		// robot is rotating counterclockwise
+		// slow down right motors
+		else if (currentError < 0)
+		{
+			currentMotorPowerLeft = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerRight = currentMotorPower;
+		}
+		else
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = currentMotorPower;
+		}
+
+		motor[backLeft] = currentMotorPowerLeft;
+		motor[frontLeft] = currentMotorPowerLeft;
+		motor[backRight] = currentMotorPowerRight;
+		motor[frontRight] = currentMotorPowerRight;
+
+		currentMotorPower -= 5;
+		wait1Msec(25);
+	}
+
+	currentMotorPower = 0;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower-3;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
+
+	wait1Msec(50);
+}
+
+
+
+
+void driveInForward()
+{
+	while (currentPosition > (DISTANCE_TO_WALL_MM + 250))
+	{
+		currentMotorPower = MOTOR_POWER_MAX;
+
+		if (currentError > 0)
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+		}
+		// SensorL < SensorR
+		// robot is rotating clockwise
+		// slow down right motors
+		else if (currentError < 0)
+		{
+			currentMotorPowerLeft = (currentMotorPower - (currentMotorPower * motorPowerCorrectionPercentage));
+			currentMotorPowerRight = currentMotorPower;
+		}
+		else
+		{
+			currentMotorPowerLeft = currentMotorPower;
+			currentMotorPowerRight = currentMotorPower;
+		}
+
+		motor[backLeft] = currentMotorPowerLeft;
+		motor[frontLeft] = currentMotorPowerLeft;
+		motor[backRight] = currentMotorPowerRight;
+		motor[frontRight] = currentMotorPowerRight;
+		wait1Msec(50);
+	}
+}
+
+
+
+
+void driveToWall(bool rampSpeed)
+{
+
+	rampUpMotorsInForward();
+
+	driveInForward();
+
+	if (rampSpeed)
+	{
+		rampDownMotorsInForward();
+	}
+}
+
+
+
+
+void scoreSection(bool shoveCube)
+{
+	//raiseLift(grabHeight, 100);
+
 	closeClaws();
+
+	wait1Msec(100);
+
+	raiseLift(maxHeight, 127);
+
+	wait1Msec(100);
+
+	rampUpMotorsInReverse();
+
+	driveInReverse();
+
+	rampDownMotorsInReverse();
+
 	wait1Msec(250);
 
-	// lift up to get skyrise section out of holder on side of field
-	if (liftHeightMax < 500)
-	{
-		raiseLift(liftHeightMax, 127);
-	}
-	else
-	{
-		raiseLift(200, 127);
-	}
+	lowerLift(scoreHeight, 100, 20);
 
-	wait1Msec(100);
-
-	// drive to near skyrise base/cube
-	if (shoveCube)
-	{
-		sensorDriveReverse(drivePower, shoveCubeStoppingPoint);
-		sensorDriveForward(drivePower, scoringLocation, false);
-	}
-	else
-	{
-		sensorDriveReverse(drivePower, phaseOneStoppingPoint);
-	}
-
-	// lift up to scoring position
-	if (liftHeightMax > 500)
-	{
-		wait1Msec(100);
-		if (abs(SensorValue[leftLiftI2C]) < liftHeightMax)
-		{
-			raiseLift(liftHeightMax, 80);
-			sensorDriveReverse(drivePower-20, scoringLocation);
-		}
-	}
-
-	wait1Msec(100);
-
-
-	// lift down to set in skyrise
-	lowerLift(liftHeightScore, 40, 0);
-	wait1Msec(500);
-
-
-	// open claw
 	openClaws();
-	wait1Msec(200);
 
-	if (abortAuton)
-	{
-		sensorDriveReverse(127, shoveCubeStoppingPoint+20);
-	}
-	else
-	{
-		if (liftHeightMax > 400) liftHeightMax += 50;
-		// lift up to clear skyrise
-		raiseLift(liftHeightMax, 127);
-		wait1Msec(100);
+	wait1Msec(250);
 
-
-		// drive forward to clear skyrise base/cube
-		sensorDriveForward(drivePower, LOCATION_WALL, true);
-		wait1Msec(100);
-
-		if (SensorValue[leftLiftI2C] > 5)
-		{
-			lowerLift(5, 50, 30);
-			wait1Msec(200);
-		}
-
-		resetLiftMotorEncoders();
-	}
-
+	driveToWall(true);
 }
+
+
 
 
 
@@ -846,55 +975,51 @@ task autonomous()
 	// set sonar sensors offsets
 	// this is the adjustment for a wall that isn't exactly perpendicular
 	// to the line we want to drive
-	if (SensorValue[SonarR] > SensorValue[SonarL])
+	if (SONAR_OFFSET == -999)
 	{
-		sonarL_Offset = 0;
-		sonarR_Offset = SensorValue[SonarR]-SensorValue[SonarL];
-	}
-	else
-	{
-		sonarR_Offset = 0;
-		sonarL_Offset = SensorValue[SonarL]-SensorValue[SonarR];
+		SONAR_OFFSET = (SensorValue[SonarL] - SensorValue[SonarR]);
 	}
 
-	positionToStartLoweringLiftWhenDrivingForward = 350;
+	AUTON_STATE = -1;
+
 	resetLiftMotorEncoders();
 
-	if (AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER
+	if (AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER_RED
+		|| AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER_BLUE
 		|| AUTON_MODE == AUTON_MODE_PROGRAMMING_SKILLS)
 	{
+		startTask(DriveStraightPID);
+
 
 		// raise lift to open arms, eject cube at base
-		raiseLift(200, 127);
-		wait1Msec(100);
+		//raiseLift(200, 127);
+		//wait1Msec(100);
 
 		openClaws();
 
 		// lower arm
-		lowerLift(5, 127, 30);
+		//lowerLift(5, 127, 30);
 
 		resetLiftMotorEncoders();
 
+		grabHeight = 85;
+		maxHeight = 300;
+		scoreHeight = 5;
+		shoveCube = true;
+		abortAuton = false;
+
+		raiseLift(grabHeight, 127);
+
 		// drive straight in wall
-		sensorDriveForward(70, LOCATION_WALL, false);
-		wait1Msec(100);
+		driveToWall(false);
+		wait1Msec(250);
 
-		int maxHeight = 150;
-		int scoreHeight = 5;
-		int phaseOneStoppingPoint = 63; // original value: 62
-		int scoringLocation = 63;
-		int drivePower = 65; // 62 works with fresh battery; 65 works with 'aged' battery
-		bool shoveCube = true;
-		bool abortAuton = false;
-		scoreSection(maxHeight
-			, scoreHeight
-			, phaseOneStoppingPoint
-			, scoringLocation
-			, drivePower
-			, shoveCube
-			, abortAuton);
+		scoreSection(shoveCube);
+		wait1Msec(500);
 
+		//StopTask(DriveStraightPID);
 
+		/*
 		maxHeight = 260;
 		scoreHeight = 240;
 		phaseOneStoppingPoint = 56;
@@ -989,9 +1114,10 @@ task autonomous()
 				, shoveCube
 				, abortAuton);
 		}
+		*/
 
 	}
-	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER)
+	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_RED)
 	{
 		resetLiftMotorEncoders();
 		raiseLift(600, 127);
