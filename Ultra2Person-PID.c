@@ -52,10 +52,14 @@ AUTONOMOUS CONST
 const int CLAW_CLOSE = 0;
 const int CLAW_OPEN = 1;
 
+const int CLAW_LEFT = 0;
+const int CLAW_RIGHT = 1;
+const int CLAW_BOTH = 2;
+
 const int DIRECTION_FORWARD = 1;
 const int DIRECTION_REVERSE = -1;
 
-const int DISTANCE_TO_WALL_MM = 50; // slams into wall at 51
+const int DISTANCE_TO_WALL_MM = 50;
 
 const int SLOPE_TOLERANCE_MM = 3; // 1 inch == 25.4 mm
 
@@ -108,6 +112,8 @@ int maxDrivePower = 100;
 int minDrivePower = 20;
 bool shoveCube = true;
 bool abortAuton = false;
+
+int clawSide = CLAW_BOTH;
 
 int AUTON_STATE = 0;
 
@@ -191,6 +197,7 @@ void pre_auton()
 					//Display second choice
 					displayLCDCenteredString(0, "Skyrise Red");
 					displayLCDCenteredString(1, "<		 Enter		>");
+					clawSide = CLAW_LEFT;
 					waitForPress();
 					//Increment or decrement "count" based on button press
 					if(nLCDButtons == leftButton)
@@ -209,6 +216,7 @@ void pre_auton()
 					//Display second choice
 					displayLCDCenteredString(0, "Skyrise Blue");
 					displayLCDCenteredString(1, "<		 Enter		>");
+					clawSide = CLAW_RIGHT;
 					waitForPress();
 					//Increment or decrement "count" based on button press
 					if(nLCDButtons == leftButton)
@@ -263,6 +271,7 @@ void pre_auton()
 					//Display fourth choice
 					displayLCDCenteredString(0, "Prog Skills");
 					displayLCDCenteredString(1, "<		 Enter		>");
+					clawSide = CLAW_LEFT;
 					waitForPress();
 					//Increment or decrement "count" based on button press
 					if(nLCDButtons == leftButton)
@@ -558,19 +567,41 @@ void resetLiftMotorEncoders()
 
 
 
-// FUNC.openClaws
-void openClaws()
+// FUNC.openClaw
+void openClaw(int side)
 {
-	SensorValue[skyriseL] = CLAW_OPEN;
-	SensorValue[skyriseR] = CLAW_OPEN;
+	if (side == CLAW_BOTH)
+	{
+		SensorValue[skyriseL] = CLAW_OPEN;
+		SensorValue[skyriseR] = CLAW_OPEN;
+	}
+	else if (side == CLAW_RIGHT)
+	{
+		SensorValue[skyriseR] = CLAW_OPEN;
+	}
+	else if (side == CLAW_LEFT)
+	{
+		SensorValue[skyriseL] = CLAW_OPEN;
+	}
 }
 
 
 // FUNC.closeClaws
-void closeClaws()
+void closeClaw(int side)
 {
-	SensorValue[skyriseL] = CLAW_CLOSE;
-	SensorValue[skyriseR] = CLAW_CLOSE;
+	if (side == CLAW_BOTH)
+	{
+		SensorValue[skyriseL] = CLAW_CLOSE;
+		SensorValue[skyriseR] = CLAW_CLOSE;
+	}
+	else if (side == CLAW_RIGHT)
+	{
+		SensorValue[skyriseR] = CLAW_CLOSE;
+	}
+	else if (side == CLAW_LEFT)
+	{
+		SensorValue[skyriseL] = CLAW_CLOSE;
+	}
 }
 
 
@@ -939,9 +970,7 @@ void driveToWall(bool rampSpeed)
 
 void scoreSection(bool shoveCube)
 {
-	//raiseLift(grabHeight, 100);
-
-	closeClaws();
+	closeClaw(clawSide);
 
 	wait1Msec(100);
 
@@ -959,7 +988,7 @@ void scoreSection(bool shoveCube)
 
 	lowerLift(scoreHeight, 100, 20);
 
-	openClaws();
+	openClaw(clawSide);
 
 	wait1Msec(250);
 
@@ -990,131 +1019,97 @@ task autonomous()
 	{
 		startTask(DriveStraightPID);
 
-
 		// raise lift to open arms, eject cube at base
-		//raiseLift(200, 127);
-		//wait1Msec(100);
+		raiseLift(200, 127);
+		wait1Msec(100);
 
-		openClaws();
+		openClaw(clawSide);
 
 		// lower arm
-		//lowerLift(5, 127, 30);
+		lowerLift(5, 127, 30);
 
+		// now that the lift is back to its lowest
+		// set lift motor encoders to read that position as zero
 		resetLiftMotorEncoders();
 
+		// raise arm to grab first skyrise section near top
+		// so we can slam dunk the first section into skyrise base
+		raiseLift(grabHeight, 127);
+
+
+		// set variables for first skyrise section
 		grabHeight = 85;
 		maxHeight = 300;
 		scoreHeight = 5;
 		shoveCube = true;
 		abortAuton = false;
 
-		raiseLift(grabHeight, 127);
-
-		// drive straight in wall
+		// drive straight into wall
 		driveToWall(false);
-		wait1Msec(250);
+		wait1Msec(100);
 
 		scoreSection(shoveCube);
-		wait1Msec(500);
 
-		//StopTask(DriveStraightPID);
 
-		/*
+		// second skyrise section
+		grabHeight = 20;
 		maxHeight = 260;
 		scoreHeight = 240;
-		phaseOneStoppingPoint = 56;
-		scoringLocation = 56; // original value: 57
 		shoveCube = false;
 		abortAuton = false;
-		scoreSection(maxHeight
-			, scoreHeight
-			, phaseOneStoppingPoint
-			, scoringLocation
-			, drivePower
-			, shoveCube
-			, abortAuton);
+
+		scoreSection(shoveCube);
 
 
+		// third skyrise section
+		grabHeight = 20;
 		maxHeight = 380;
 		scoreHeight = 360;
-		phaseOneStoppingPoint = 56;
-		scoringLocation = 56; // original value: 62
 		shoveCube = false;
-		abortAuton = (AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER);
-		scoreSection(maxHeight
-			, scoreHeight
-			, phaseOneStoppingPoint
-			, scoringLocation
-			, drivePower
-			, shoveCube
-			, abortAuton);
+		abortAuton = false;
+
+		scoreSection(shoveCube);
 
 
-		//programming skills
-		if (AUTON_MODE == AUTON_MODE_PROGRAMMING_SKILLS)
-		{
+		// fourth skyrise section
+		grabHeight = 20;
+		maxHeight = 600;
+		scoreHeight = 580;
+		shoveCube = false;
+		abortAuton = false;
 
-			maxHeight = 600;
-			scoreHeight = 580;
-			phaseOneStoppingPoint = 13;
-			scoringLocation = 57; // original value: 62
-			drivePower = 74;
-			shoveCube = false;
-			abortAuton = false;
-			scoreSection(maxHeight
-				, scoreHeight
-				, phaseOneStoppingPoint
-				, scoringLocation
-				, drivePower
-				, shoveCube
-				, abortAuton);
+		scoreSection(shoveCube);
 
 
-			maxHeight = 740;
-			scoreHeight = 720;
-			phaseOneStoppingPoint = 13;
-			scoringLocation = 57; // original value: 62
-			shoveCube = false;
-			abortAuton = false;
-			scoreSection(maxHeight
-				, scoreHeight
-				, phaseOneStoppingPoint
-				, scoringLocation
-				, drivePower
-				, shoveCube
-				, abortAuton);
+		// fifth skyrise section
+		grabHeight = 20;
+		maxHeight = 740;
+		scoreHeight = 720;
+		shoveCube = false;
+		abortAuton = false;
+
+		scoreSection(shoveCube);
 
 
-			maxHeight = 850;
-			scoreHeight = 830;
-			phaseOneStoppingPoint = 13;
-			scoringLocation = 58; // original value: 58
-			shoveCube = false;
-			abortAuton = false;
-			scoreSection(maxHeight
-				, scoreHeight
-				, phaseOneStoppingPoint
-				, scoringLocation
-				, drivePower
-				, shoveCube
-				, abortAuton);
+		// sixth skyrise section
+		grabHeight = 20;
+		maxHeight = 740;
+		scoreHeight = 720;
+		shoveCube = false;
+		abortAuton = false;
+
+		scoreSection(shoveCube);
 
 
-			maxHeight = 1300;
-			scoreHeight = 1280;
-			phaseOneStoppingPoint = 13;
-			scoringLocation = 63; // original value: 62
-			shoveCube = false;
-			abortAuton = false;
-			scoreSection(maxHeight
-				, scoreHeight
-				, phaseOneStoppingPoint
-				, scoringLocation
-				, drivePower
-				, shoveCube
-				, abortAuton);
-		}
-		*/
+
+		// seventh skyrise section
+		grabHeight = 20;
+		maxHeight = 1300;
+		scoreHeight = 1280;
+		shoveCube = false;
+		abortAuton = false;
+
+		scoreSection(shoveCube);
 
 	}
 	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_RED)
@@ -1156,7 +1151,7 @@ task autonomous()
 		raiseLift(280, 127);
 		wait1Msec(100);
 
-		openClaws();
+		openClaw(CLAW_BOTH);
 
 		// lower arm
 		lowerLift(5, 127, 0);
