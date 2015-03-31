@@ -84,8 +84,6 @@ Autonomous PID variables
 // 23 1/2 inches from wall to center of skyrise base
 float SONAR_OFFSET = -999;
 
-float SensorSlope = 0.0;
-
 
 float motorPowerCorrectionPercentage = 0.0;
 int currentMotorPower = 0;
@@ -93,7 +91,6 @@ int currentPosition = 0;
 int direction = DIRECTION_FORWARD;
 
 float currentError = 0.0;
-float lastError = 0.0;
 
 int currentMotorPowerLeft = 0;
 int currentMotorPowerRight = 0;
@@ -104,24 +101,20 @@ int currentMotorPowerRight = 0;
 Autonomous variables
 */
 int grabHeight = 100;
+int initialCarryHeight = 150;
 int maxHeight = 150;
 int scoreHeight = 5;
-int liftPointUp = 25;
-int liftPointDown = 300;
 
-int phaseOneStoppingPoint = 63; // original value: 62
+int raiseLiftStartingDistance = 25;
+int lowerLiftStartingDistance = 300;
+
 int scoringLocation = DISTANCE_TO_GOAL_MM;
-int maxDrivePower = 100;
-int minDrivePower = 20;
 bool shoveCube = true;
 bool abortAuton = false;
 
 int clawSide = CLAW_BOTH;
 
 int AUTON_STATE = 0;
-
-
-int positionToStartLoweringLiftWhenDrivingForward = 280;
 
 
 
@@ -654,7 +647,7 @@ void lowerLift(int liftStopPosition, int liftPowerDown, int liftPowerHold) {
 
 // NOTE: if SensorL > SensorR, currentError > 0
 // 			SensorL < SensorR, currentError < 0
-void rampUpMotorsInReverse()
+void rampUpMotorsInReverseWithSonar()
 {
 	currentMotorPower = MOTOR_POWER_MIN;
 
@@ -699,10 +692,10 @@ void rampUpMotorsInReverse()
 
 
 
-void rampDownMotorsInReverse()
+void rampDownMotorsInReverseWithSonar()
 {
 	while (currentMotorPower > MOTOR_POWER_MIN
-		&& currentPosition < DISTANCE_TO_GOAL_MM -50)
+		&& currentPosition < scoringLocation -50)
 	{
 		// SensorL > SensorR
 		// robot is rotating counterclockwise
@@ -752,9 +745,9 @@ void rampDownMotorsInReverse()
 
 
 
-void driveInReverse()
+void driveBackwardsWithSonar()
 {
-	while (currentPosition < (DISTANCE_TO_GOAL_MM-250))
+	while (currentPosition < (scoringLocation - 250))
 	{
 		currentMotorPower = MOTOR_POWER_MAX;
 
@@ -792,7 +785,7 @@ void driveInReverse()
 
 
 
-void rampUpMotorsInForward()
+void rampUpMotorsInForwardWithSonar()
 {
 	currentMotorPower = MOTOR_POWER_MIN;
 
@@ -834,7 +827,7 @@ void rampUpMotorsInForward()
 
 
 
-void rampDownMotorsInForward()
+void rampDownMotorsInForwardWithSonar()
 {
 	while (currentMotorPower > MOTOR_POWER_MIN
 		&& currentPosition > DISTANCE_TO_WALL_MM)
@@ -882,7 +875,7 @@ void rampDownMotorsInForward()
 
 
 
-void driveInForward()
+void driveForwardWithSonar()
 {
 	while (currentPosition > (DISTANCE_TO_WALL_MM + 250))
 	{
@@ -918,58 +911,66 @@ void driveInForward()
 
 
 
-void driveToWall(bool rampSpeed)
+void driveToWallWithSonar(bool rampSpeed)
 {
 
-	rampUpMotorsInForward();
+	rampUpMotorsInForwardWithSonar();
 
-	driveInForward();
+	driveForwardWithSonar();
 
 	if (rampSpeed)
 	{
-		rampDownMotorsInForward();
+		rampDownMotorsInForwardWithSonar();
 	}
 }
 
 
 
 
-void scoreSection(bool shoveCube)
+void scoreSkyriseSection(bool shoveCube)
 {
+	// needed to raise and lower arm with task
 	direction = DIRECTION_REVERSE;
 
 	closeClaw(clawSide);
 
 	wait1Msec(100);
 
-	//raiseLift(maxHeight, 127);
+	// TODO: figure out good height at which to drive away from wall
+	raiseLift(initialCarryHeight, 127);
 
 	wait1Msec(100);
 
-	rampUpMotorsInReverse();
+	rampUpMotorsInReverseWithSonar();
 
-	driveInReverse();
+	driveBackwardsWithSonar();
 
-	rampDownMotorsInReverse();
+	rampDownMotorsInReverseWithSonar();
 
 	wait1Msec(250);
 
+	// needed to raise and lower arm with task
 	direction = DIRECTION_FORWARD;
 
-	//lowerLift(scoreHeight, 100, 20);
+	// lower the lift to score
+	// height, down power, hold lift power
+	lowerLift(scoreHeight, 60, 20);
 
 	openClaw(clawSide);
 
-	wait1Msec(250);
+	wait1Msec(100);
 
-	driveToWall(true);
+	// raise lift to get arm clear of skyrise tower
+	raiseLift(maxHeight, 127);
+
+	driveToWallWithSonar(true);
 }
 
 
 
 // NOTE: if SensorL > SensorR, currentError > 0
 // 			SensorL < SensorR, currentError < 0
-task DriveStraightPID()
+task DriveStraightPIDWithSonar()
 {
 	while (true)
 	{
@@ -995,33 +996,36 @@ task DriveStraightPID()
 
 
 
-
-// TODO: handle skyrise lift here?
 task AutonSkyriseLift()
 {
-	bool liftIsMoving = false;
+	bool raiseLiftHasBeenCalled = false;
+	bool lowerLiftHasBenCalled = false;
 
 	while (true)
 	{
 		if (direction == DIRECTION_REVERSE)
 		{
-			if (SensorValue[SonarL] >= liftPointUp
-				&& liftIsMoving == false)
+			// reset variable so lift will go down on next run
+			lowerLiftHasBenCalled = false;
+
+			if (SensorValue[SonarL] >= raiseLiftStartingDistance
+			&& raiseLiftHasBeenCalled == false)
 			{
-				liftIsMoving = true;
+				raiseLiftHasBeenCalled = true;
 				raiseLift(maxHeight, 127);
-				liftIsMoving = false;
 			}
 		}
 		else if (direction == DIRECTION_FORWARD
-			&& liftIsMoving == false)
+		&& lowerLiftHasBenCalled == false)
 		{
-			if (SensorValue[SonarL] >= liftPointDown)
+			// reset variable so lift will go up on next run
+			raiseLiftHasBeenCalled = false;
+
+			if (SensorValue[SonarL] >= lowerLiftStartingDistance)
 			{
-				liftIsMoving = true;
+				lowerLiftHasBenCalled = true;
 				// final lift position, lift down power, lift hold power
 				lowerLift(20, 60, 20);
-				liftIsMoving = false;
 			}
 		}
 	}
@@ -1041,13 +1045,14 @@ task autonomous()
 
 	AUTON_STATE = -1;
 
+	resetDriveMotorEncoders();
 	resetLiftMotorEncoders();
 
 	if (AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER_RED
 		|| AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER_BLUE
 		|| AUTON_MODE == AUTON_MODE_PROGRAMMING_SKILLS)
 	{
-		startTask(DriveStraightPID);
+		startTask(DriveStraightPIDWithSonar);
 		startTask(AutonSkyriseLift);
 
 		// raise lift to open arms, eject cube at base
@@ -1070,90 +1075,104 @@ task autonomous()
 
 		// set variables for first skyrise section
 		grabHeight = 85;
+		initialCarryHeight = 150;
 		maxHeight = 300;
-		liftPointUp = 100;
-		liftPointDown = 300;
+		raiseLiftStartingDistance = 100;
+		lowerLiftStartingDistance = 300;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 5;
 		shoveCube = true;
 		abortAuton = false;
 
 		// drive straight into wall
-		driveToWall(false);
+		driveToWallWithSonar(false);
 		wait1Msec(100);
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
 
 		// second skyrise section
 		grabHeight = 20;
+		initialCarryHeight = 260;
 		maxHeight = 260;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 240;
 		shoveCube = false;
 		abortAuton = false;
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
 
 		// third skyrise section
 		grabHeight = 20;
+		initialCarryHeight = 300;
 		maxHeight = 380;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 360;
 		shoveCube = false;
 		abortAuton = false;
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
 
 		// fourth skyrise section
 		grabHeight = 20;
+		initialCarryHeight = 300;
 		maxHeight = 600;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 580;
 		shoveCube = false;
 		abortAuton = false;
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
 
 		// fifth skyrise section
 		grabHeight = 20;
+		initialCarryHeight = 300;
 		maxHeight = 740;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 720;
 		shoveCube = false;
 		abortAuton = false;
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
 
 		// sixth skyrise section
 		grabHeight = 20;
+		initialCarryHeight = 300;
 		maxHeight = 740;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 720;
 		shoveCube = false;
 		abortAuton = false;
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
 
 		// seventh skyrise section
 		grabHeight = 20;
+		initialCarryHeight = 300;
 		maxHeight = 1300;
+		scoringLocation = DISTANCE_TO_GOAL_MM;
 		scoreHeight = 1280;
 		shoveCube = false;
 		abortAuton = false;
 
-		scoreSection(shoveCube);
+		scoreSkyriseSection(shoveCube);
 
 		resetLiftMotorEncoders();
 
