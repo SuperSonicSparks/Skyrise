@@ -106,6 +106,9 @@ Autonomous variables
 int grabHeight = 100;
 int maxHeight = 150;
 int scoreHeight = 5;
+int liftPointUp = 25;
+int liftPointDown = 300;
+
 int phaseOneStoppingPoint = 63; // original value: 62
 int scoringLocation = DISTANCE_TO_GOAL_MM;
 int maxDrivePower = 100;
@@ -645,43 +648,6 @@ void lowerLift(int liftStopPosition, int liftPowerDown, int liftPowerHold) {
 }
 
 
-// NOTE: if SensorL > SensorR, currentError > 0
-// 			SensorL < SensorR, currentError < 0
-task DriveStraightPID()
-{
-	while (true)
-	{
-		wait1Msec(10);
-		motorPowerCorrectionPercentage = 0;
-
-		if (abs(SensorValue[SonarL] - SensorValue[SonarR]) >= SLOPE_TOLERANCE_MM)
-		{
-
-			currentError = ((SensorValue[SonarL] - SensorValue[SonarR] - SONAR_OFFSET) / DISTANCE_BETWEEN_SENSORS_MM);
-
-			currentPosition = (SensorValue[SonarL] + SensorValue[SonarR]) / 2;
-
-			motorPowerCorrectionPercentage =
-			(
-				(currentMotorPower * abs(currentError))
-					// * (DISTANCE_TO_GOAL_MM / (DISTANCE_TO_GOAL_MM - currentPosition))
-					* MOTOR_POWER_FACTOR
-			) / 100;
-		}
-	}
-}
-
-
-
-
-// TODO: handle skyrise lift here?
-task AutonSkyriseLift()
-{
-
-}
-
-
-
 
 // TODO: task for auton timer?
 
@@ -970,11 +936,13 @@ void driveToWall(bool rampSpeed)
 
 void scoreSection(bool shoveCube)
 {
+	direction = DIRECTION_REVERSE;
+
 	closeClaw(clawSide);
 
 	wait1Msec(100);
 
-	raiseLift(maxHeight, 127);
+	//raiseLift(maxHeight, 127);
 
 	wait1Msec(100);
 
@@ -986,7 +954,9 @@ void scoreSection(bool shoveCube)
 
 	wait1Msec(250);
 
-	lowerLift(scoreHeight, 100, 20);
+	direction = DIRECTION_FORWARD;
+
+	//lowerLift(scoreHeight, 100, 20);
 
 	openClaw(clawSide);
 
@@ -996,6 +966,66 @@ void scoreSection(bool shoveCube)
 }
 
 
+
+// NOTE: if SensorL > SensorR, currentError > 0
+// 			SensorL < SensorR, currentError < 0
+task DriveStraightPID()
+{
+	while (true)
+	{
+		wait1Msec(10);
+		motorPowerCorrectionPercentage = 0;
+
+		if (abs(SensorValue[SonarL] - SensorValue[SonarR]) >= SLOPE_TOLERANCE_MM)
+		{
+
+			currentError = ((SensorValue[SonarL] - SensorValue[SonarR] - SONAR_OFFSET) / DISTANCE_BETWEEN_SENSORS_MM);
+
+			currentPosition = (SensorValue[SonarL] + SensorValue[SonarR]) / 2;
+
+			motorPowerCorrectionPercentage =
+			(
+				(currentMotorPower * abs(currentError))
+					// * (DISTANCE_TO_GOAL_MM / (DISTANCE_TO_GOAL_MM - currentPosition))
+					* MOTOR_POWER_FACTOR
+			) / 100;
+		}
+	}
+}
+
+
+
+
+// TODO: handle skyrise lift here?
+task AutonSkyriseLift()
+{
+	bool liftIsMoving = false;
+
+	while (true)
+	{
+		if (direction == DIRECTION_REVERSE)
+		{
+			if (SensorValue[SonarL] >= liftPointUp
+				&& liftIsMoving == false)
+			{
+				liftIsMoving = true;
+				raiseLift(maxHeight, 127);
+				liftIsMoving = false;
+			}
+		}
+		else if (direction == DIRECTION_FORWARD
+			&& liftIsMoving == false)
+		{
+			if (SensorValue[SonarL] >= liftPointDown)
+			{
+				liftIsMoving = true;
+				// final lift position, lift down power, lift hold power
+				lowerLift(20, 60, 20);
+				liftIsMoving = false;
+			}
+		}
+	}
+}
 
 
 
@@ -1018,6 +1048,7 @@ task autonomous()
 		|| AUTON_MODE == AUTON_MODE_PROGRAMMING_SKILLS)
 	{
 		startTask(DriveStraightPID);
+		startTask(AutonSkyriseLift);
 
 		// raise lift to open arms, eject cube at base
 		raiseLift(200, 127);
@@ -1040,6 +1071,8 @@ task autonomous()
 		// set variables for first skyrise section
 		grabHeight = 85;
 		maxHeight = 300;
+		liftPointUp = 100;
+		liftPointDown = 300;
 		scoreHeight = 5;
 		shoveCube = true;
 		abortAuton = false;
@@ -1049,6 +1082,8 @@ task autonomous()
 		wait1Msec(100);
 
 		scoreSection(shoveCube);
+
+		resetLiftMotorEncoders();
 
 
 		// second skyrise section
@@ -1060,6 +1095,8 @@ task autonomous()
 
 		scoreSection(shoveCube);
 
+		resetLiftMotorEncoders();
+
 
 		// third skyrise section
 		grabHeight = 20;
@@ -1069,6 +1106,8 @@ task autonomous()
 		abortAuton = false;
 
 		scoreSection(shoveCube);
+
+		resetLiftMotorEncoders();
 
 
 		// fourth skyrise section
@@ -1080,6 +1119,8 @@ task autonomous()
 
 		scoreSection(shoveCube);
 
+		resetLiftMotorEncoders();
+
 
 		// fifth skyrise section
 		grabHeight = 20;
@@ -1089,6 +1130,8 @@ task autonomous()
 		abortAuton = false;
 
 		scoreSection(shoveCube);
+
+		resetLiftMotorEncoders();
 
 
 		// sixth skyrise section
@@ -1100,6 +1143,7 @@ task autonomous()
 
 		scoreSection(shoveCube);
 
+		resetLiftMotorEncoders();
 
 
 		// seventh skyrise section
@@ -1110,6 +1154,8 @@ task autonomous()
 		abortAuton = false;
 
 		scoreSection(shoveCube);
+
+		resetLiftMotorEncoders();
 
 	}
 	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_RED)
