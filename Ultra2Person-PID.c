@@ -114,8 +114,6 @@ bool abortAuton = false;
 
 int clawSide = CLAW_BOTH;
 
-int AUTON_STATE = 0;
-
 
 
 
@@ -1033,6 +1031,154 @@ task AutonSkyriseLift()
 
 
 
+/*
+Distance from Sp to C1
+	11.75 - (widthOfCube/2) + widthOfCubeTube
+	11.75
+
+Distance from C1 to Spin1
+	11.75
+
+Distance from Spin1 to C2
+	23.50
+
+Distance from Spin2 to goal
+	28.5
+*/
+
+
+
+
+void SkyriseAuton()
+{
+	startTask(DriveStraightPIDWithSonar);
+	startTask(AutonSkyriseLift);
+
+	// raise lift to open arms, eject cube at base
+	raiseLift(200, 127);
+	wait1Msec(100);
+
+	openClaw(clawSide);
+
+	// lower arm
+	lowerLift(5, 127, 30);
+
+	// now that the lift is back to its lowest
+	// set lift motor encoders to read that position as zero
+	resetLiftMotorEncoders();
+
+	// raise arm to grab first skyrise section near top
+	// so we can slam dunk the first section into skyrise base
+	raiseLift(grabHeight, 127);
+
+
+	// set variables for first skyrise section
+	grabHeight = 85;
+	initialCarryHeight = 150;
+	maxHeight = 300;
+	raiseLiftStartingDistance = 100;
+	lowerLiftStartingDistance = 300;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 5;
+	shoveCube = true;
+	abortAuton = false;
+
+	// drive straight into wall
+	driveToWallWithSonar(false);
+	wait1Msec(100);
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+
+
+	// second skyrise section
+	grabHeight = 20;
+	initialCarryHeight = 260;
+	maxHeight = 260;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 240;
+	shoveCube = false;
+	abortAuton = false;
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+
+
+	// third skyrise section
+	grabHeight = 20;
+	initialCarryHeight = 300;
+	maxHeight = 380;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 360;
+	shoveCube = false;
+	abortAuton = false;
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+
+
+	// fourth skyrise section
+	grabHeight = 20;
+	initialCarryHeight = 300;
+	maxHeight = 600;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 580;
+	shoveCube = false;
+	abortAuton = false;
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+
+
+	// fifth skyrise section
+	grabHeight = 20;
+	initialCarryHeight = 300;
+	maxHeight = 740;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 720;
+	shoveCube = false;
+	abortAuton = false;
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+
+
+	// sixth skyrise section
+	grabHeight = 20;
+	initialCarryHeight = 300;
+	maxHeight = 740;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 720;
+	shoveCube = false;
+	abortAuton = false;
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+
+
+	// seventh skyrise section
+	grabHeight = 20;
+	initialCarryHeight = 300;
+	maxHeight = 1300;
+	scoringLocation = DISTANCE_TO_GOAL_MM;
+	scoreHeight = 1280;
+	shoveCube = false;
+	abortAuton = false;
+
+	scoreSkyriseSection(shoveCube);
+
+	resetLiftMotorEncoders();
+}
+
+
+
+
 task autonomous()
 {
 	// set sonar sensors offsets
@@ -1043,8 +1189,6 @@ task autonomous()
 		SONAR_OFFSET = (SensorValue[SonarL] - SensorValue[SonarR]);
 	}
 
-	AUTON_STATE = -1;
-
 	resetDriveMotorEncoders();
 	resetLiftMotorEncoders();
 
@@ -1052,151 +1196,16 @@ task autonomous()
 		|| AUTON_MODE == AUTON_MODE_SKYRISE_BUILDER_BLUE
 		|| AUTON_MODE == AUTON_MODE_PROGRAMMING_SKILLS)
 	{
-		startTask(DriveStraightPIDWithSonar);
-		startTask(AutonSkyriseLift);
-
-		// raise lift to open arms, eject cube at base
-		raiseLift(200, 127);
-		wait1Msec(100);
-
-		openClaw(clawSide);
-
-		// lower arm
-		lowerLift(5, 127, 30);
-
-		// now that the lift is back to its lowest
-		// set lift motor encoders to read that position as zero
-		resetLiftMotorEncoders();
-
-		// raise arm to grab first skyrise section near top
-		// so we can slam dunk the first section into skyrise base
-		raiseLift(grabHeight, 127);
-
-
-		// set variables for first skyrise section
-		grabHeight = 85;
-		initialCarryHeight = 150;
-		maxHeight = 300;
-		raiseLiftStartingDistance = 100;
-		lowerLiftStartingDistance = 300;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 5;
-		shoveCube = true;
-		abortAuton = false;
-
-		// drive straight into wall
-		driveToWallWithSonar(false);
-		wait1Msec(100);
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
-
-
-		// second skyrise section
-		grabHeight = 20;
-		initialCarryHeight = 260;
-		maxHeight = 260;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 240;
-		shoveCube = false;
-		abortAuton = false;
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
-
-
-		// third skyrise section
-		grabHeight = 20;
-		initialCarryHeight = 300;
-		maxHeight = 380;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 360;
-		shoveCube = false;
-		abortAuton = false;
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
-
-
-		// fourth skyrise section
-		grabHeight = 20;
-		initialCarryHeight = 300;
-		maxHeight = 600;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 580;
-		shoveCube = false;
-		abortAuton = false;
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
-
-
-		// fifth skyrise section
-		grabHeight = 20;
-		initialCarryHeight = 300;
-		maxHeight = 740;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 720;
-		shoveCube = false;
-		abortAuton = false;
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
-
-
-		// sixth skyrise section
-		grabHeight = 20;
-		initialCarryHeight = 300;
-		maxHeight = 740;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 720;
-		shoveCube = false;
-		abortAuton = false;
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
-
-
-		// seventh skyrise section
-		grabHeight = 20;
-		initialCarryHeight = 300;
-		maxHeight = 1300;
-		scoringLocation = DISTANCE_TO_GOAL_MM;
-		scoreHeight = 1280;
-		shoveCube = false;
-		abortAuton = false;
-
-		scoreSkyriseSection(shoveCube);
-
-		resetLiftMotorEncoders();
+		SkyriseAuton();
 
 	}
 	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_RED)
 	{
-		resetLiftMotorEncoders();
-		raiseLift(600, 127);
+		// TODO: is there a simple way to mirror this auton?
+	}
+	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_BLUE)
+	{
 
-		lowerLift(5, 127, 0);
-
-		wait1Msec(250);
-
-		motor[backLeft] = -100;
-		motor[frontLeft] = -100;
-		motor[backRight] = -100;
-		motor[frontRight] = -100;
-
-		wait1Msec(1000);
-
-		motor[backLeft] = 0;
-		motor[frontLeft] = 0;
-		motor[backRight] = 0;
-		motor[frontRight] = 0;
 	}
 	else if (AUTON_MODE == AUTON_MODE_DRIVE_OFF_SQUARE)
 	{
