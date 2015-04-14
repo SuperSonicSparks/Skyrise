@@ -128,7 +128,7 @@ const int AUTON_MODE_CUBE_SCORER_RED = 3;
 const int AUTON_MODE_CUBE_SCORER_BLUE = 4;
 const int AUTON_MODE_PROGRAMMING_SKILLS = 5;
 
-int AUTON_MODE = AUTON_MODE_PROGRAMMING_SKILLS;
+int AUTON_MODE = AUTON_MODE_CUBE_SCORER_RED;
 
 
 
@@ -1071,6 +1071,7 @@ Distance from Spin2 to goal
 
 void CubeAuton()
 {
+	resetLiftMotorEncoders();
 	int encoderWheeDiameterMultiplier = 51;// for normal geared 393 motors with 4" diameter wheeels
 	//	int encoderWheeDiameterMultiplier = 31;// for high speed geared 393 motors with 4" diameter wheeels (might be 82)
 
@@ -1085,41 +1086,22 @@ void CubeAuton()
 	//raise lift, score cube on low goal
 	// also ejects claw arms
 	raiseLift(200, 127);
-	wait1Msec(100);
+	wait1Msec(500);
 
 	// lower arm
-	lowerLift(5, 127, 30);
+	//lowerLift(5, 127, 30);
 
 	// reset Gyro
 	SensorValue(Gryo) = 0;
-
-	//turn 45 degrees to drive parallel to wall
-	// TODO: we'll probably need to shorten this rotation to account for spin
-	currentMotorPower = 100;
-	while (abs(SensorValue(Gryo)) < 45)
-	{
-		motor[backLeft] = -currentMotorPowerLeft * powerInverter;
-		motor[frontLeft] = -currentMotorPowerLeft * powerInverter;
-		motor[backRight] = currentMotorPowerRight * powerInverter;
-		motor[frontRight] = currentMotorPowerRight * powerInverter;
-	}
-
-	// put the brakes on
-	currentMotorPower = 0;
-	motor[backLeft] = -3 * powerInverter;
-	motor[frontLeft] = -3 * powerInverter;
-	motor[backRight] = 3 * powerInverter;
-	motor[frontRight] = 3 * powerInverter;
-
 
 	// set motor encoders to zero
 	resetDriveMotorEncoders();
 
 	//drive forward 11.75 inches to first cube
 	// TODO: we'll probably need to shorten this distance to account for drift
-	float totalEncoderCount = 11.75 * encoderWheeDiameterMultiplier;
+	float totalEncoderCount = 10 * encoderWheeDiameterMultiplier;
 	currentMotorPower = 100;
-	while (((SensorValue[rightFrontI2C] + SensorValue[leftBackI2C]) / 2) < totalEncoderCount)
+	while (abs((SensorValue[rightFrontI2C])) < totalEncoderCount)
 	{
 		motor[backLeft] = currentMotorPower;
 		motor[frontLeft] = currentMotorPower;
@@ -1135,106 +1117,100 @@ void CubeAuton()
 	motor[frontLeft] = -3;
 	motor[backRight] = -3;
 	motor[frontRight] = -3;
+	SensorValue(IntakeSol) = 0;
 
+	// grab cube
+	lowerLift(5, 127, 100);  //lower lift, pick up cube
+	wait1Msec(750);
 
-	lowerLift(5, 127, 30);  //lower lift, pick up cube
 
 	//raise lift
-	raiseLift(200, 127);
+	raiseLift(400, 127);
 	wait1Msec(100);
 
 
-	//forward 11.75
-	totalEncoderCount = 11.75 * encoderWheeDiameterMultiplier;
-	currentMotorPower = 100;
-	while (((SensorValue[rightFrontI2C] + SensorValue[leftBackI2C]) / 2) < totalEncoderCount)
-	{
-		motor[backLeft] = currentMotorPower;
-		motor[frontLeft] = currentMotorPower;
-		motor[backRight] = currentMotorPower;
-		motor[frontRight] = currentMotorPower;
-	}
-
-	// TODO: we may have to strafe to pick up cube
-
-	// put the brakes on
-	currentMotorPower = 0;
-	motor[backLeft] = -3;
-	motor[frontLeft] = -3;
-	motor[backRight] = -3;
-	motor[frontRight] = -3;
-
 	// reset Gyro
 	SensorValue(Gryo) = 0;
-
-	// spin to middle of field (90 degrees)
-	// TODO: we'll probably need to shorten this rotation to account for spin
-	currentMotorPower = 100;
-	while (abs(SensorValue(Gryo)) < 90)
-	{
-		motor[backLeft] = currentMotorPowerLeft * powerInverter;
-		motor[frontLeft] = currentMotorPowerLeft * powerInverter;
-		motor[backRight] = -currentMotorPowerRight * powerInverter;
-		motor[frontRight] = -currentMotorPowerRight * powerInverter;
-	}
-
-
-	//forward 23.5 inches
-	totalEncoderCount = 23.5 * encoderWheeDiameterMultiplier;
-	currentMotorPower = 100;
-	while (((SensorValue[rightFrontI2C] + SensorValue[leftBackI2C]) / 2) < totalEncoderCount)
-	{
-		motor[backLeft] = currentMotorPower;
-		motor[frontLeft] = currentMotorPower;
-		motor[backRight] = currentMotorPower;
-		motor[frontRight] = currentMotorPower;
-	}
-
-	// TODO: we may have to strafe to pick up cube
-
-	// put the brakes on
-	currentMotorPower = 0;
-	motor[backLeft] = -3;
-	motor[frontLeft] = -3;
-	motor[backRight] = -3;
-	motor[frontRight] = -3;
-
-
-	lowerLift(5, 127, 30);  //lower lift, pick up cube
-
-	//raise lift
-	raiseLift(200, 127);
 	wait1Msec(100);
 
-	//180 spin
-	// reset Gyro
-	SensorValue(Gryo) = 0;
 
-	// spin to middle of field (90 degrees)
+	// rotate away from wall
 	// TODO: we'll probably need to shorten this rotation to account for spin
 	currentMotorPower = 100;
-	while (abs(SensorValue(Gryo)) < 180)
+	while (abs(SensorValue(Gryo)) < 250)
 	{
-		motor[backLeft] = -currentMotorPowerLeft * powerInverter;
-		motor[frontLeft] = -currentMotorPowerLeft * powerInverter;
-		motor[backRight] = currentMotorPowerRight * powerInverter;
-		motor[frontRight] = currentMotorPowerRight * powerInverter;
+		motor[backLeft] = currentMotorPower * powerInverter;
+		motor[frontLeft] = currentMotorPower * powerInverter;
+		motor[backRight] = -currentMotorPower * powerInverter;
+		motor[frontRight] = -currentMotorPower * powerInverter;
 	}
+
+
+	SensorValue[rightFrontI2C] = 0;
+
+	// drive forward on an angle
+	totalEncoderCount = 23 * encoderWheeDiameterMultiplier;
+	currentMotorPower = 100;
+	while (abs(SensorValue[rightFrontI2C]) < totalEncoderCount)
+	{
+		motor[backLeft] = currentMotorPower;
+		motor[frontLeft] = currentMotorPower;
+		motor[backRight] = currentMotorPower;
+		motor[frontRight] = currentMotorPower;
+	}
+
 
 	// put the brakes on
 	currentMotorPower = 0;
-	motor[backLeft] = -3 * powerInverter;
-	motor[frontLeft] = -3 * powerInverter;
-	motor[backRight] = 3 * powerInverter;
-	motor[frontRight] = 3 * powerInverter;
+	motor[backLeft] = -3;
+	motor[frontLeft] = -3;
+	motor[backRight] = -3;
+	motor[frontRight] = -3;
+	wait1Msec(100);
 
 
+	// reset Gyro
+	SensorValue(Gryo) = 0;
+	wait1Msec(250);
 
-	// drive forward 20 inches
-	//forward 20 inches
-	totalEncoderCount = 20 * encoderWheeDiameterMultiplier;
+
+	// spin towards wall
 	currentMotorPower = 100;
-	while (((SensorValue[rightFrontI2C] + SensorValue[leftBackI2C]) / 2) < totalEncoderCount)
+	while (abs(SensorValue(Gryo)) < 1170)
+	{
+		motor[backLeft] = -currentMotorPower * powerInverter;
+		motor[frontLeft] = -currentMotorPower * powerInverter;
+		motor[backRight] = currentMotorPower * powerInverter;
+		motor[frontRight] = currentMotorPower * powerInverter;
+	}
+
+
+	// put the brakes on
+	currentMotorPower = 0;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
+	wait1Msec(100);
+
+
+	// get to scoring height
+	raiseLift(860, 127);
+	wait1Msec(250);
+
+
+	// start driving
+	currentMotorPower = 100;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
+	wait1Msec(200);
+
+
+	// finish driving forward to wall
+	currentMotorPower = 100;
+	while (SensorValue[SonarL] > 120)
 	{
 		motor[backLeft] = currentMotorPower;
 		motor[frontLeft] = currentMotorPower;
@@ -1246,42 +1222,71 @@ void CubeAuton()
 
 	// put the brakes on
 	currentMotorPower = 0;
-	motor[backLeft] = -3;
-	motor[frontLeft] = -3;
-	motor[backRight] = -3;
-	motor[frontRight] = -3;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
 
 
-	//raise lift
-	// TODO: we may need to adjust this height to score cubes
-	raiseLift(600, 127);
-	wait1Msec(100);
-
-	// finish driving forward
-// drive forward 20 inches
-	//forward 20 inches
-	totalEncoderCount = 3 * encoderWheeDiameterMultiplier;
-	currentMotorPower = 100;
-	while (((SensorValue[rightFrontI2C] + SensorValue[leftBackI2C]) / 2) < totalEncoderCount)
-	{
-		motor[backLeft] = currentMotorPower;
-		motor[frontLeft] = currentMotorPower;
-		motor[backRight] = currentMotorPower;
-		motor[frontRight] = currentMotorPower;
-	}
-
-	// TODO: we may have to strafe to line up with goal
-
-	// put the brakes on
-	currentMotorPower = 0;
-	motor[backLeft] = -3;
-	motor[frontLeft] = -3;
-	motor[backRight] = -3;
-	motor[frontRight] = -3;
+	lowerLift(600, 60, 30);
+	wait1Msec(400);
 
 
 	// release cubes to score
-	SensorValue[IntakeSol] = 0;
+	SensorValue[IntakeSol] = 1;
+	wait1Msec(200);
+
+
+	// get clear of goal / get unhooked
+	raiseLift(860, 127);
+	wait1Msec(250);
+
+
+	// back up away from goal
+	currentMotorPower = -100;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
+	wait1Msec(750);
+
+	// stop
+	currentMotorPower = 0;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
+	wait1Msec(300);
+
+
+	lowerLift(400, 60, 30);
+	wait1Msec(300);
+
+
+	// reset Gyro
+	SensorValue(Gryo) = 0;
+
+
+	// spin towards middle of field
+	currentMotorPower = 100;
+	while (abs(SensorValue(Gryo)) < 1800)
+	{
+		motor[backLeft] = -currentMotorPower * powerInverter;
+		motor[frontLeft] = -currentMotorPower * powerInverter;
+		motor[backRight] = currentMotorPower * powerInverter;
+		motor[frontRight] = currentMotorPower * powerInverter;
+	}
+
+	currentMotorPower = 0;
+	motor[backLeft] = currentMotorPower;
+	motor[frontLeft] = currentMotorPower;
+	motor[backRight] = currentMotorPower;
+	motor[frontRight] = currentMotorPower;
+	wait1Msec(100);
+
+	// get to scoring height
+	raiseLift(200, 127);
+	wait1Msec(250);
 }
 
 
@@ -1439,13 +1444,10 @@ task autonomous()
 		SkyriseAuton();
 
 	}
-	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_RED)
+	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_RED
+		|| AUTON_MODE == AUTON_MODE_CUBE_SCORER_BLUE)
 	{
-		// TODO: is there a simple way to mirror this auton?
-	}
-	else if (AUTON_MODE == AUTON_MODE_CUBE_SCORER_BLUE)
-	{
-
+		CubeAuton();
 	}
 	else if (AUTON_MODE == AUTON_MODE_DRIVE_OFF_SQUARE)
 	{
